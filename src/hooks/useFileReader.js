@@ -11,6 +11,11 @@ export const useFileReader = () => {
       delimiter = ',' 
     } = options;
 
+    if (!file) {
+      setError('Nessun file fornito');
+      return null;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -18,7 +23,11 @@ export const useFileReader = () => {
       const text = await file.text();
       
       if (!parseCSV) {
-        return text.split('\n').map(line => line.trim()).filter(Boolean);
+        const lines = text.split('\n')
+          .map(line => line.trim())
+          .filter(Boolean);
+        
+        return skipHeader ? lines.slice(1) : lines;
       }
 
       const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
@@ -43,3 +52,5 @@ export const useFileReader = () => {
 
   return { readFile, isLoading, error };
 };
+
+export default useFileReader;

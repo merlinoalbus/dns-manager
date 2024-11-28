@@ -1,24 +1,23 @@
+import React from 'react';
+
 export const Button = ({ 
-    children, 
-    onClick, 
-    variant = 'primary', 
-    disabled = false,
-    className = '' 
-  }) => {
-    const baseStyles = "px-4 py-2 rounded font-medium focus:outline-none transition-colors";
-    const variantStyles = {
-      primary: "bg-blue-600 text-white hover:bg-blue-700",
-      secondary: "bg-gray-200 text-gray-800 hover:bg-gray-300",
-      danger: "bg-red-600 text-white hover:bg-red-700"
-    };
+  children, 
+  variant = 'default', 
+  className = '', 
+  ...props 
+}) => {
+  const baseStyles = 'inline-flex items-center justify-center rounded-md font-medium transition-colors focus:outline-none';
   
-    return (
-      <button
-        className={`${baseStyles} ${variantStyles[variant]} ${className}`}
-        onClick={onClick}
-        disabled={disabled}
-      >
-        {children}
-      </button>
-    );
+  const variants = {
+    default: 'bg-blue-600 text-white hover:bg-blue-700',
+    outline: 'border border-gray-200 bg-white hover:bg-gray-50',
   };
+
+  const finalClassName = `${baseStyles} ${variants[variant]} ${className}`;
+
+  return (
+    <button className={finalClassName} {...props}>
+      {children}
+    </button>
+  );
+};
