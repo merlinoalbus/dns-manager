@@ -1,35 +1,33 @@
-const fs = require('fs');
-const path = require('path');
+import { openDB } from 'idb';
 
-const EXCEPTIONS_FILE = path.join(__dirname, '../config/defaultExceptions.js');
-
-export const readExceptions = () => {
-  try {
-    const fileContent = fs.readFileSync(EXCEPTIONS_FILE, 'utf8');
-    // Estrae l'array di eccezioni dal file
-    const matches = fileContent.match(/=\s*\[([\s\S]*?)\]/);
-    if (matches && matches[1]) {
-      return matches[1]
-        .split(',')
-        .map(item => item.trim().replace(/['"]/g, ''))
-        .filter(Boolean);
+const dbPromise = openDB('dnsExceptionsDB', 1, {
+  upgrade(db) {
+    if (!db.objectStoreNames.contains('exceptions')) {
+      db.createObjectStore('exceptions', { keyPath: 'id', autoIncrement: true });
     }
-    return [];
-  } catch (error) {
-    console.error('Errore nella lettura delle eccezioni:', error);
-    return [];
+  },
+});
+
+// Legge tutte le eccezioni memorizzate
+const readExceptions = async () => {
+  const db = await dbPromise;
+  const exceptions = await db.getAll('exceptions');
+  return exceptions.map((exception) => exception.value); // Estrai i valori
+};
+
+// Salva le eccezioni persistendole in IndexedDB
+const saveExceptions = async (exceptions) => {
+  try {
+    const db = await dbPromise;
+    await db.clear('exceptions'); // Cancella eccezioni precedenti
+    await Promise.all(
+      exceptions.map((exception) => db.add('exceptions', { value: exception }))
+    );
+    return true; // Operazione riuscita
+  } catch (err) {
+    console.error('Errore durante il salvataggio delle eccezioni:', err);
+    return false; // Operazione fallita
   }
 };
 
-export const saveExceptions = (exceptions) => {
-  try {
-    const content = `export const defaultExceptions = [\n  ${
-      exceptions.map(exc => `'${exc}'`).join(',\n  ')
-    }\n];`;
-    fs.writeFileSync(EXCEPTIONS_FILE, content, 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Errore nel salvataggio delle eccezioni:', error);
-    return false;
-  }
-};
+export { readExceptions, saveExceptions };

@@ -9,7 +9,7 @@ import { readExceptions, saveExceptions } from '../../../services/exceptionsServ
 const ExceptionItem = ({ exception, onDelete }) => (
   <div className="flex items-center gap-2 p-2 bg-blue-50 rounded border border-blue-100">
     <span className="flex-1 text-blue-900">{exception}</span>
-    <button 
+    <button
       onClick={() => onDelete(exception)}
       className="text-blue-500 hover:text-blue-700"
     >
@@ -25,12 +25,18 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
   const [validatedRecords, setValidatedRecords] = useState({ public: [], private: [] });
   const [showResults, setShowResults] = useState(false);
   const [exceptions, setExceptions] = useState([]);
-
   const { readFile, isLoading } = useFileReader();
 
   useEffect(() => {
-    const loadedExceptions = readExceptions();
-    setExceptions(loadedExceptions);
+    const loadExceptions = async () => {
+      try {
+        const loadedExceptions = await readExceptions();
+        setExceptions(Array.isArray(loadedExceptions) ? loadedExceptions : []);
+      } catch (err) {
+        setExceptions([]);
+      }
+    };
+    loadExceptions();
   }, []);
 
   const addException = useCallback(() => {
@@ -49,18 +55,19 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
     }
   }, [newException, exceptions, onError]);
 
-  const removeException = useCallback((exceptionToRemove) => {
+  const removeException = useCallback(async (exceptionToRemove) => {
     const updatedExceptions = exceptions.filter(exc => exc !== exceptionToRemove);
-    if (saveExceptions(updatedExceptions)) {
-      setExceptions(updatedExceptions);
-    } else {
+    try {
+      const result = await saveExceptions(updatedExceptions);
+      if (result) {
+        setExceptions(updatedExceptions);
+      } else {
+        onError('Errore nella rimozione dell\'eccezione');
+      }
+    } catch (err) {
       onError('Errore nella rimozione dell\'eccezione');
     }
   }, [exceptions, onError]);
-
-  useEffect(() => {
-    localStorage.setItem('dnsExceptions', JSON.stringify(exceptions));
-  }, [exceptions]);
 
   const handleFileUpload = useCallback(async (file, type) => {
     try {
@@ -85,30 +92,26 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
       return;
     }
 
-    const validPublic = publicDNS.filter(record => {
-      const validation = validatePublicDNS(record);
-      return validation.isValid && !checkDNSExceptions(validation.name, exceptions);
-    });
+    const validPublic = publicDNS
+      .map(record => validatePublicDNS(record))
+      .filter(validation => validation.isValid && checkDNSExceptions(validation.name, exceptions));
 
-    const validPrivate = privateDNS.filter(record => {
-      const validation = validatePrivateDNS(record);
-      return validation.isValid && !checkDNSExceptions(validation.name, exceptions);
-    });
+    const validPrivate = privateDNS
+      .map(record => validatePrivateDNS(record))
+      .filter(validation => validation.isValid && checkDNSExceptions(validation.name, exceptions));
 
     setValidatedRecords({
       public: validPublic,
-      private: validPrivate
+      private: validPrivate,
     });
     setShowResults(true);
-  }, [publicDNS, privateDNS, exceptions, onError]);
+  }, [publicDNS, privateDNS, exceptions]);
 
   const handleContinue = () => {
     if (validatedRecords.public.length || validatedRecords.private.length) {
       onComplete(validatedRecords);
     }
   };
-
-  // ... [Il resto del return del componente rimane invariato] ...
 
   return (
     <div className="space-y-8">
@@ -126,7 +129,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
             className="flex-1"
             onKeyPress={(e) => e.key === 'Enter' && addException()}
           />
-          <Button 
+          <Button
             onClick={addException}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center"
           >
@@ -134,13 +137,13 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
             Aggiungi
           </Button>
         </div>
-        
+
         <div className="space-y-2">
           {exceptions.map((exception, index) => (
             <ExceptionItem
               key={index}
               exception={exception}
-              onDelete={(exc) => setExceptions(prev => prev.filter(e => e !== exc))}
+              onDelete={removeException}
             />
           ))}
         </div>
@@ -150,8 +153,8 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
         <div>
           <h4 className="font-medium mb-2">DNS Pubblici</h4>
           <div className="flex items-center gap-4">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="flex items-center gap-2"
               onClick={() => document.getElementById('publicDNS').click()}
             >
@@ -171,7 +174,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
         <div>
           <h4 className="font-medium mb-2">DNS Privati</h4>
           <div className="flex items-center gap-4">
-            <Button 
+            <Button
               variant="outline"
               className="flex items-center gap-2"
               onClick={() => document.getElementById('privateDNS').click()}
@@ -190,7 +193,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
         </div>
       </div>
 
-      <Button 
+      <Button
         onClick={validateRecords}
         className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md"
         disabled={isLoading || (!publicDNS.length && !privateDNS.length)}
@@ -207,7 +210,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
               <div className="bg-gray-50 p-4 rounded-md max-h-96 overflow-y-auto">
                 {validatedRecords.public.map((record, index) => (
                   <div key={index} className="text-sm py-1 border-b last:border-0">
-                    {record}
+                    {record.name} - {record.type} - {record.value}
                   </div>
                 ))}
               </div>
@@ -221,7 +224,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
               <div className="bg-gray-50 p-4 rounded-md max-h-96 overflow-y-auto">
                 {validatedRecords.private.map((record, index) => (
                   <div key={index} className="text-sm py-1 border-b last:border-0">
-                    {record}
+                    {record.name} - {record.type} - {record.value}
                   </div>
                 ))}
               </div>
@@ -232,7 +235,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
           </div>
 
           <div className="flex justify-end mt-4">
-            <Button 
+            <Button
               onClick={handleContinue}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6"
             >
