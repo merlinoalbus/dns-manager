@@ -144,6 +144,51 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
     setShowResults(true);
   }, [publicDNS, privateDNS, exceptions]);
 
+  const handleExportPublicCSV = useCallback(() => {
+    const generateCSV = (records) => {
+      const header = ['Name', 'Type', 'Value', 'ID', 'Zone Name', 'TTL'];
+      const rows = records.map(record => [
+        record.name,
+        record.type,
+        record.value,
+        record.id || 'N/A',
+        record.zone_name || 'N/A',
+        record.ttl || 'N/A',
+      ]);
+      return [header, ...rows].map(row => row.join(',')).join('\n');
+    };
+
+    const csvContent = generateCSV(validatedRecords.public);
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'valid-public-dns.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [validatedRecords.public]);
+
+  const handleExportPrivateCSV = useCallback(() => {
+    const generateCSV = (records) => {
+      const header = ['Name', 'Type', 'Value'];
+      const rows = records.map(record => [
+        record.name,
+        record.type,
+        record.value,
+      ]);
+      return [header, ...rows].map(row => row.join(',')).join('\n');
+    };
+
+    const csvContent = generateCSV(validatedRecords.private);
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'valid-private-dns.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [validatedRecords.private]);
+
   const handleContinue = () => {
     if (validatedRecords.public.length || validatedRecords.private.length) {
       onComplete(validatedRecords);
@@ -152,10 +197,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
 
   return (
     <div className="space-y-8">
-      <div className="h-1 bg-gray-200 rounded-full">
-        <div className="h-full bg-blue-600 rounded-full w-1/3" />
-      </div>
-
+      {/* Gestione delle eccezioni */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Gestione Eccezioni</h3>
         <div className="flex gap-2">
@@ -205,6 +247,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
         </div>
       </div>
 
+      {/* Validazione e visualizzazione */}
       <div className="grid grid-cols-2 gap-8">
         <div>
           <h4 className="font-medium mb-2">DNS Pubblici</h4>
@@ -257,7 +300,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
         Valida Records DNS
       </Button>
 
-      {showResults && (validatedRecords.public.length > 0 || validatedRecords.private.length > 0) && (
+      {showResults && (
         <div className="space-y-6">
           <h3 className="text-lg font-semibold">Records DNS Validi</h3>
           <div className="grid grid-cols-2 gap-8">
@@ -273,6 +316,12 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
               <div className="mt-2 text-sm text-gray-600">
                 {validatedRecords.public.length} record validi
               </div>
+              <Button
+                onClick={handleExportPublicCSV}
+                className="mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
+              >
+                Esporta DNS Pubblici in CSV
+              </Button>
             </div>
 
             <div>
@@ -287,6 +336,12 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
               <div className="mt-2 text-sm text-gray-600">
                 {validatedRecords.private.length} record validi
               </div>
+              <Button
+                onClick={handleExportPrivateCSV}
+                className="mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
+              >
+                Esporta DNS Privati in CSV
+              </Button>
             </div>
           </div>
 
