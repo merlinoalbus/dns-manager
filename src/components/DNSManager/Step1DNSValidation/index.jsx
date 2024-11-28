@@ -31,7 +31,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
     const loadExceptions = async () => {
       try {
         const loadedExceptions = await readExceptions();
-        setExceptions(Array.isArray(loadedExceptions) ? loadedExceptions : []);
+        setExceptions(Array.isArray(loadedExceptions) ? loadedExceptions.sort() : []);
       } catch (err) {
         setExceptions([]);
       }
@@ -46,7 +46,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
       return;
     }
 
-    const updatedExceptions = [...exceptions, newException.trim()];
+    const updatedExceptions = [...exceptions, newException.trim()].sort();
     if (saveExceptions(updatedExceptions)) {
       setExceptions(updatedExceptions);
       setNewException('');
@@ -56,7 +56,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
   }, [newException, exceptions, onError]);
 
   const removeException = useCallback(async (exceptionToRemove) => {
-    const updatedExceptions = exceptions.filter(exc => exc !== exceptionToRemove);
+    const updatedExceptions = exceptions.filter(exc => exc !== exceptionToRemove).sort();
     try {
       const result = await saveExceptions(updatedExceptions);
       if (result) {
@@ -66,6 +66,43 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
       }
     } catch (err) {
       onError('Errore nella rimozione dell\'eccezione');
+    }
+  }, [exceptions, onError]);
+
+  const handleExportExceptions = useCallback(() => {
+    const sortedExceptions = [...exceptions].sort();
+    const blob = new Blob([JSON.stringify(sortedExceptions, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'exceptions.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [exceptions]);
+
+  const handleImportExceptions = useCallback(async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const importedExceptions = JSON.parse(text);
+
+      if (!Array.isArray(importedExceptions)) {
+        onError('Il file importato non è valido. Deve essere un array di stringhe.');
+        return;
+      }
+
+      const mergedExceptions = Array.from(new Set([...exceptions, ...importedExceptions])).sort();
+      setExceptions(mergedExceptions);
+
+      if (saveExceptions(mergedExceptions)) {
+        onError('Eccezioni importate con successo!');
+      } else {
+        onError('Errore durante il salvataggio delle eccezioni.');
+      }
+    } catch (err) {
+      onError(`Errore durante l'importazione: ${err.message}`);
     }
   }, [exceptions, onError]);
 
@@ -138,8 +175,27 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
           </Button>
         </div>
 
+        <div className="flex gap-2">
+          <Button
+            onClick={handleExportExceptions}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
+          >
+            Esporta Eccezioni
+          </Button>
+
+          <label className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md cursor-pointer">
+            Importa Eccezioni
+            <input
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={handleImportExceptions}
+            />
+          </label>
+        </div>
+
         <div className="space-y-2">
-          {exceptions.map((exception, index) => (
+          {[...exceptions].sort().map((exception, index) => (
             <ExceptionItem
               key={index}
               exception={exception}
