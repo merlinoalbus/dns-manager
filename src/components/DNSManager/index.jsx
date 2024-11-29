@@ -1,3 +1,5 @@
+// DNSManager.jsx
+
 import React, { useState, useCallback } from 'react';
 import Step1DNSValidation from './Step1DNSValidation';
 import Step2CertificateValidation from './Step2CertificateValidation';
@@ -24,9 +26,12 @@ const DNSManager = () => {
     setCurrentStep(3);
   }, []);
 
-  // Handler per tornare allo step precedente
-  const handleStepBack = useCallback(() => {
-    setCurrentStep(prev => Math.max(1, prev - 1));
+  // Handler per reimpostare l'applicazione
+  const handleReset = useCallback(() => {
+    setCurrentStep(1);
+    setValidatedDNS({ public: [], private: [] });
+    setValidatedCertificates({ public: [], private: [] });
+    setError('');
   }, []);
 
   // Renderizza il contenuto dello step corrente
@@ -44,16 +49,15 @@ const DNSManager = () => {
           <Step2CertificateValidation
             dnsData={validatedDNS}
             onComplete={handleStep2Complete}
-            onBack={handleStepBack}
+            onReset={handleReset} // Passiamo la funzione di reset
             onError={setError}
           />
         );
       case 3:
         return (
           <Step3Processing
-            dnsData={validatedDNS}
-            certificateData={validatedCertificates}
-            onBack={handleStepBack}
+            certificates={validatedCertificates}
+            onReset={handleReset} // Passiamo la funzione di reset
             onError={setError}
           />
         );
@@ -63,9 +67,25 @@ const DNSManager = () => {
   };
 
   return (
-    <div className="container mx-auto px-4">
+    <div 
+      className="min-h-screen bg-gray-200"
+      style={{
+        backgroundImage: `url('/assets/background.png')`, // Assicurati che il percorso sia corretto
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: 'right top',
+        backgroundSize: 'contain',
+      }}
+    >
       <Card>
         <div className="p-6">
+          {/* Logo Centrato */}
+          <div className="flex justify-center mb-6">
+            <img 
+              src="https://courtesy.prada.com/stylesheets/images/logo-prada.png" 
+              alt="Prada Logo" 
+              className="h-16"
+            />
+          </div>
           <h1 className="text-2xl font-bold mb-6">DNS Manager</h1>
           <StepProgress currentStep={currentStep} totalSteps={3} />
           {error && (

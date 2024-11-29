@@ -1,7 +1,9 @@
+// Step1DNSValidation.jsx
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from '../../shared/ui/Button';
 import { Input } from '../../shared/ui/Input';
-import { Upload, Plus, X } from 'lucide-react';
+import { Upload, Plus, X, Save, Download } from 'lucide-react';
 import { useFileReader } from '../../../hooks';
 import { validatePublicDNS, validatePrivateDNS, checkDNSExceptions } from '../../../utils/dnsValidation';
 import { readExceptions, saveExceptions } from '../../../services/exceptionsService';
@@ -25,7 +27,12 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
   const [validatedRecords, setValidatedRecords] = useState({ public: [], private: [] });
   const [showResults, setShowResults] = useState(false);
   const [exceptions, setExceptions] = useState([]);
-  const { readFile, isLoading } = useFileReader();
+  const { isLoading } = useFileReader();
+
+  // New states for progress
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationProgress, setValidationProgress] = useState(0);
+  const [validationMessage, setValidationMessage] = useState('');
 
   useEffect(() => {
     const loadExceptions = async () => {
@@ -51,7 +58,7 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
       setExceptions(updatedExceptions);
       setNewException('');
     } else {
-      onError('Errore nel salvataggio dell\'eccezione');
+      onError("Errore nel salvataggio dell'eccezione");
     }
   }, [newException, exceptions, onError]);
 
@@ -62,10 +69,10 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
       if (result) {
         setExceptions(updatedExceptions);
       } else {
-        onError('Errore nella rimozione dell\'eccezione');
+        onError("Errore nella rimozione dell'eccezione");
       }
     } catch (err) {
-      onError('Errore nella rimozione dell\'eccezione');
+      onError("Errore nella rimozione dell'eccezione");
     }
   }, [exceptions, onError]);
 
@@ -123,26 +130,70 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
     }
   }, [onError]);
 
-  const validateRecords = useCallback(() => {
+  const validateRecords = useCallback(async () => {
     if (!publicDNS.length && !privateDNS.length) {
       onError('Carica almeno una lista DNS prima di procedere');
       return;
     }
 
-    const validPublic = publicDNS
-      .map(record => validatePublicDNS(record))
-      .filter(validation => validation.isValid && checkDNSExceptions(validation.name, exceptions));
+    setIsValidating(true);
+    setValidationProgress(0);
+    setValidationMessage('Inizio validazione dei record DNS...');
 
-    const validPrivate = privateDNS
-      .map(record => validatePrivateDNS(record))
-      .filter(validation => validation.isValid && checkDNSExceptions(validation.name, exceptions));
+    try {
+      const totalRecords = publicDNS.length + privateDNS.length;
+      let processedRecords = 0;
 
-    setValidatedRecords({
-      public: validPublic,
-      private: validPrivate,
-    });
-    setShowResults(true);
-  }, [publicDNS, privateDNS, exceptions]);
+      const validPublic = [];
+      const validPrivate = [];
+
+      // Validate Public DNS Records
+      if (publicDNS.length > 0) {
+        setValidationMessage('Validazione dei DNS Pubblici...');
+        for (let i = 0; i < publicDNS.length; i++) {
+          const record = publicDNS[i];
+          const validation = validatePublicDNS(record);
+          if (validation.isValid && checkDNSExceptions(validation.name, exceptions)) {
+            validPublic.push(validation);
+          }
+          processedRecords++;
+          setValidationProgress(Math.floor((processedRecords / totalRecords) * 100));
+
+          // Simulate async processing
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      }
+
+      // Validate Private DNS Records
+      if (privateDNS.length > 0) {
+        setValidationMessage('Validazione dei DNS Privati...');
+        for (let i = 0; i < privateDNS.length; i++) {
+          const record = privateDNS[i];
+          const validation = validatePrivateDNS(record);
+          if (validation.isValid && checkDNSExceptions(validation.name, exceptions)) {
+            validPrivate.push(validation);
+          }
+          processedRecords++;
+          setValidationProgress(Math.floor((processedRecords / totalRecords) * 100));
+
+          // Simulate async processing
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      }
+
+      setValidatedRecords({
+        public: validPublic,
+        private: validPrivate,
+      });
+      setShowResults(true);
+      setValidationMessage('Validazione completata.');
+    } catch (error) {
+      onError('Errore durante la validazione: ' + error.message);
+    } finally {
+      setIsValidating(false);
+      setValidationProgress(100);
+    }
+  }, [publicDNS, privateDNS, exceptions, onError]);
 
   const handleExportPublicCSV = useCallback(() => {
     const generateCSV = (records) => {
@@ -192,13 +243,16 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
   const handleContinue = () => {
     if (validatedRecords.public.length || validatedRecords.private.length) {
       onComplete(validatedRecords);
+    } else {
+      onError('Non ci sono record DNS validi da procedere.');
     }
   };
 
   return (
     <div className="space-y-8">
-      {/* Gestione delle eccezioni */}
+      {/* Exception Management */}
       <div className="space-y-4">
+        <h2 className="text-2xl font-semibold">Step 1: Gestione e Validazione DNS</h2>
         <h3 className="text-lg font-semibold">Gestione Eccezioni</h3>
         <div className="flex gap-2">
           <Input
@@ -220,12 +274,14 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
         <div className="flex gap-2">
           <Button
             onClick={handleExportExceptions}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center"
           >
+            <Download className="h-4 w-4 mr-2" />
             Esporta Eccezioni
           </Button>
 
-          <label className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md cursor-pointer">
+          <label className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md cursor-pointer flex items-center">
+            <Upload className="h-4 w-4 mr-2" />
             Importa Eccezioni
             <input
               type="file"
@@ -236,58 +292,55 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
           </label>
         </div>
 
-        <div className="space-y-2">
-          {[...exceptions].sort().map((exception, index) => (
-            <ExceptionItem
-              key={index}
-              exception={exception}
-              onDelete={removeException}
-            />
-          ))}
+        {/* Scrollable Exceptions List */}
+        <div className="mt-8 max-h-96 overflow-y-auto border border-gray-200 rounded-md p-2 bg-gray-50">
+          {exceptions.length > 0 ? (
+            exceptions.map((exception, index) => (
+              <ExceptionItem
+                key={index}
+                exception={exception}
+                onDelete={removeException}
+              />
+            ))
+          ) : (
+            <p className="text-sm text-gray-600">Nessuna eccezione presente.</p>
+          )}
         </div>
       </div>
 
-      {/* Validazione e visualizzazione */}
+      {/* DNS Records Upload and Validation */}
       <div className="grid grid-cols-2 gap-8">
         <div>
           <h4 className="font-medium mb-2">DNS Pubblici</h4>
           <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              className="flex items-center gap-2"
-              onClick={() => document.getElementById('publicDNS').click()}
-            >
-              <Upload className="h-4 w-4" />
+            <label className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md cursor-pointer flex items-center">
+              <Upload className="h-4 w-4 mr-2" />
               Carica File
-            </Button>
-            <span className="text-sm text-gray-600">{publicDNS.length} records caricati</span>
-            <input
-              type="file"
-              id="publicDNS"
-              className="hidden"
-              onChange={(e) => handleFileUpload(e.target.files[0], 'public')}
-            />
+              <input
+                type="file"
+                accept=".txt"
+                className="hidden"
+                onChange={(e) => handleFileUpload(e.target.files[0], 'public')}
+              />
+            </label>
+            <span className="text-sm text-gray-600">{publicDNS.length} record(s) caricati</span>
           </div>
         </div>
 
         <div>
           <h4 className="font-medium mb-2">DNS Privati</h4>
           <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              className="flex items-center gap-2"
-              onClick={() => document.getElementById('privateDNS').click()}
-            >
-              <Upload className="h-4 w-4" />
+            <label className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md cursor-pointer flex items-center">
+              <Upload className="h-4 w-4 mr-2" />
               Carica File
-            </Button>
-            <span className="text-sm text-gray-600">{privateDNS.length} records caricati</span>
-            <input
-              type="file"
-              id="privateDNS"
-              className="hidden"
-              onChange={(e) => handleFileUpload(e.target.files[0], 'private')}
-            />
+              <input
+                type="file"
+                accept=".txt"
+                className="hidden"
+                onChange={(e) => handleFileUpload(e.target.files[0], 'private')}
+              />
+            </label>
+            <span className="text-sm text-gray-600">{privateDNS.length} record(s) caricati</span>
           </div>
         </div>
       </div>
@@ -295,10 +348,24 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
       <Button
         onClick={validateRecords}
         className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md"
-        disabled={isLoading || (!publicDNS.length && !privateDNS.length)}
+        disabled={isLoading || (!publicDNS.length && !privateDNS.length) || isValidating}
       >
-        Valida Records DNS
+        {isValidating ? 'Validazione in corso...' : 'Valida Records DNS'}
       </Button>
+
+      {/* Progress Indicator */}
+      {isValidating && (
+        <div className="mt-4">
+          <p className="text-sm text-gray-700 mb-2">{validationMessage}</p>
+          <div className="w-full bg-gray-200 rounded-full h-4">
+            <div
+              className="bg-blue-600 h-4 rounded-full transition-all duration-300"
+              style={{ width: `${validationProgress}%` }}
+            ></div>
+          </div>
+          <p className="text-sm text-gray-600 mt-1">{validationProgress}% completato</p>
+        </div>
+      )}
 
       {showResults && (
         <div className="space-y-6">
@@ -307,48 +374,62 @@ const Step1DNSValidation = ({ onComplete, onError }) => {
             <div>
               <h4 className="font-medium mb-2">DNS Pubblici Validi</h4>
               <div className="bg-gray-50 p-4 rounded-md max-h-96 overflow-y-auto">
-                {validatedRecords.public.map((record, index) => (
-                  <div key={index} className="text-sm py-1 border-b last:border-0">
-                    {record.name} - {record.type} - {record.value}
-                  </div>
-                ))}
+                {validatedRecords.public.length > 0 ? (
+                  validatedRecords.public.map((record, index) => (
+                    <div key={index} className="text-sm py-1 border-b last:border-0">
+                      {record.name} - {record.type} - {record.value}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-600">Nessun record valido trovato.</p>
+                )}
               </div>
               <div className="mt-2 text-sm text-gray-600">
-                {validatedRecords.public.length} record validi
+                {validatedRecords.public.length} record(s) validi
               </div>
-              <Button
-                onClick={handleExportPublicCSV}
-                className="mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
-              >
-                Esporta DNS Pubblici in CSV
-              </Button>
+              {validatedRecords.public.length > 0 && (
+                <Button
+                  onClick={handleExportPublicCSV}
+                  className="mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Esporta DNS Pubblici in CSV
+                </Button>
+              )}
             </div>
 
             <div>
               <h4 className="font-medium mb-2">DNS Privati Validi</h4>
               <div className="bg-gray-50 p-4 rounded-md max-h-96 overflow-y-auto">
-                {validatedRecords.private.map((record, index) => (
-                  <div key={index} className="text-sm py-1 border-b last:border-0">
-                    {record.name} - {record.type} - {record.value}
-                  </div>
-                ))}
+                {validatedRecords.private.length > 0 ? (
+                  validatedRecords.private.map((record, index) => (
+                    <div key={index} className="text-xs py-1 border-b last:border-0">
+                      {record.name} - {record.type} - {record.value}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-600">Nessun record valido trovato.</p>
+                )}
               </div>
               <div className="mt-2 text-sm text-gray-600">
-                {validatedRecords.private.length} record validi
+                {validatedRecords.private.length} record(s) validi
               </div>
-              <Button
-                onClick={handleExportPrivateCSV}
-                className="mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
-              >
-                Esporta DNS Privati in CSV
-              </Button>
+              {validatedRecords.private.length > 0 && (
+                <Button
+                  onClick={handleExportPrivateCSV}
+                  className="mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Esporta DNS Privati in CSV
+                </Button>
+              )}
             </div>
           </div>
 
           <div className="flex justify-end mt-4">
             <Button
               onClick={handleContinue}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md"
             >
               Continua
             </Button>

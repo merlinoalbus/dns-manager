@@ -9,8 +9,8 @@ export const StepProgress = ({ currentStep, totalSteps }) => {
         </div>
         <div className="flex justify-between mt-2">
           <span>Validazione DNS</span>
-          <span>Validazione Certificati</span>
-          <span>Processing Finale</span>
+          <span>Aggiornamento Scan Digicert</span>
+          <span>Scadenza Certificati</span>
         </div>
       </div>
     );
